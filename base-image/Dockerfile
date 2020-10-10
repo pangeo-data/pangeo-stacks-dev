@@ -7,7 +7,7 @@ FROM ubuntu:18.04
 ENV CONDA_VERSION=4.8.5-1 \
     CONDA_ENV=notebook \
     NB_USER=jovyan \
-    NB_UID=1000 \
+    NB_UID=2005 \
     SHELL=/bin/bash \
     LANG=C.UTF-8  \
     LC_ALL=C.UTF-8 \
@@ -30,6 +30,9 @@ RUN echo "Creating ${NB_USER} user..." \
 # https://github.com/moby/moby/issues/35018
 #COPY --chown=${NB_USER}:${NB_USER} . ${HOME}
 COPY --chown=jovyan:jovyan . /srv
+
+RUN echo "add conda environment to bashrc" \
+    && cat /srv/bashrc_conda.txt >> ${HOME}/.bashrc
 
 # SEE: https://github.com/phusion/baseimage-docker/issues/58
 # and https://github.com/phusion/baseimage-docker/issues/319
@@ -92,6 +95,10 @@ ONBUILD RUN echo "Checking for 'apt.txt'..." \
 ONBUILD USER ${NB_USER}
 
 # Create "notebook" conda environment and dask labextensions
+#
+# note that ...bokeh/server/static doesn't exist if bokeh not in environment
+# create it so find doesn't fail
+#
 ONBUILD RUN echo "Checking for 'conda-linux-64.lock' or 'environment.yml'..." \
         ; [ -d binder ] && cd binder \
         ; [ -d .binder ] && cd .binder \
@@ -106,6 +113,7 @@ ONBUILD RUN echo "Checking for 'conda-linux-64.lock' or 'environment.yml'..." \
         && find ${CONDA_DIR} -follow -type f -name '*.a' -delete \
         && find ${CONDA_DIR} -follow -type f -name '*.pyc' -delete \
         && find ${CONDA_DIR} -follow -type f -name '*.js.map' -delete \
+        && mkdir -p ${NB_PYTHON_PREFIX}/lib/python3/site-packages/bokeh/server/static \
         && find ${NB_PYTHON_PREFIX}/lib/python*/site-packages/bokeh/server/static -follow -type f -name '*.js' ! -name '*.min.js' -delete
 
 # Install pip packages
@@ -117,7 +125,7 @@ ONBUILD RUN echo "Checking for pip 'requirements.txt'..." \
         ${NB_PYTHON_PREFIX}/bin/pip install --no-cache-dir -r requirements.txt \
         ; fi
 
-# Run postBuild script within "pangeo" environment
+# Run postBuild script within ${CONDA_ENV} environment
 ONBUILD RUN echo "Checking for 'postBuild'..." \
         ; [ -d binder ] && cd binder \
         ; [ -d .binder ] && cd .binder \
